@@ -7,28 +7,135 @@ const boardSize = 18;
 const initialSnake = [{ x: 9, y: 9 }];
 const initialFood = { x: 6, y: 7 };
 
+// ============================================================
+// MP3 FILE PATHS
+// ============================================================
+
+const SOUND_PATHS = {
+  background: "/sounds/background.mp3",
+  eat: "/sounds/eat.mp3",
+  goldenFood: "/sounds/golden-food.mp3",
+  goldenSpawn: "/sounds/golden-spawn.mp3",
+  gameOver: "/sounds/game-over.mp3",
+};
+
 const Home = () => {
+  // ==========================================================
+  // GAME STATE
+  // ==========================================================
+
   const [snake, setSnake] = useState(initialSnake);
   const [food, setFood] = useState(initialFood);
   const [goldenFood, setGoldenFood] = useState(null);
-  const [direction, setDirection] = useState({ x: 0, y: 0 });
-  const [score, setScore] = useState(0);
-
-  const [highScore, setHighScore] = useState(() => {
-    return Number(localStorage.getItem("highScore")) || 0;
+  const [direction, setDirection] = useState({
+    x: 0,
+    y: 0,
   });
+
+  const [score, setScore] = useState(0);
+  const scoreRef = useRef(0);
+  const [difficulty, setDifficulty] = useState("easy");
+
+  const [highScores, setHighScores] = useState(() => {
+    return {
+      easy: Number(localStorage.getItem("highScore_easy")) || 0,
+      medium: Number(localStorage.getItem("highScore_medium")) || 0,
+      hard: Number(localStorage.getItem("highScore_hard")) || 0,
+      expert: Number(localStorage.getItem("highScore_expert")) || 0,
+    };
+  });
+
+  const highScore = highScores[difficulty];
 
   const [gameStarted, setGameStarted] = useState(false);
   const [gameOver, setGameOver] = useState(false);
 
-  // Keep the latest positions available to the golden-food timer.
+  // ==========================================================
+  // DIFFICULTY / SPEED SETTINGS
+  // ==========================================================
+
+  const DIFFICULTY_SETTINGS = {
+    easy: {
+      name: "Easy",
+      startSpeed: 300,
+      speedIncrease: 0,
+      minSpeed: 90,
+    },
+
+    medium: {
+      name: "Medium",
+      startSpeed: 180,
+      speedIncrease: 0,
+      minSpeed: 70,
+    },
+
+    hard: {
+      name: "Hard",
+      startSpeed: 140,
+      speedIncrease: 0,
+      minSpeed: 55,
+    },
+
+    expert: {
+      name: "Expert",
+      startSpeed: 300,
+      speedIncrease: 4,
+      minSpeed: 35,
+    },
+  };
+
+  // Current difficulty settings
+  const currentDifficulty = DIFFICULTY_SETTINGS[difficulty];
+
+  // Speed calculation
+  const getGameSpeed = () => {
+    const settings = DIFFICULTY_SETTINGS[difficultyRef.current];
+
+    const speed =
+      settings.startSpeed - scoreRef.current * settings.speedIncrease;
+
+    return Math.max(settings.minSpeed, speed);
+  };
+  // ==========================================================
+  // SOUND STATE
+  // ==========================================================
+
+  const [isMuted, setIsMuted] = useState(() => {
+    return localStorage.getItem("snakeGameMuted") === "true";
+  });
+
+  // ==========================================================
+  // GAME REFS
+  // ==========================================================
+
   const snakeRef = useRef(snake);
   const foodRef = useRef(food);
   const goldenFoodRef = useRef(goldenFood);
 
+  const directionRef = useRef(direction);
+  const difficultyRef = useRef(difficulty);
+
   snakeRef.current = snake;
   foodRef.current = food;
   goldenFoodRef.current = goldenFood;
+  directionRef.current = direction;
+  difficultyRef.current = difficulty;
+
+  // ==========================================================
+  // AUDIO REFS
+  // ==========================================================
+
+  const backgroundMusicRef = useRef(null);
+  const eatSoundRef = useRef(null);
+  const goldenFoodSoundRef = useRef(null);
+  const goldenSpawnSoundRef = useRef(null);
+  const gameOverSoundRef = useRef(null);
+
+  const audioInitializedRef = useRef(false);
+
+  // ==========================================================
+  // DIRECTIONS
+  // ==========================================================
 
   const directions = {
     up: { x: 0, y: -1 },
@@ -36,6 +143,226 @@ const Home = () => {
     left: { x: -1, y: 0 },
     right: { x: 1, y: 0 },
   };
+
+  // ==========================================================
+  // CREATE AUDIO OBJECTS
+  // ==========================================================
+
+  useEffect(() => {
+    const backgroundMusic = new Audio(SOUND_PATHS.background);
+
+    const moveSound = new Audio(SOUND_PATHS.move);
+
+    const eatSound = new Audio(SOUND_PATHS.eat);
+
+    const goldenFoodSound = new Audio(SOUND_PATHS.goldenFood);
+
+    const goldenSpawnSound = new Audio(SOUND_PATHS.goldenSpawn);
+
+    const gameOverSound = new Audio(SOUND_PATHS.gameOver);
+
+    const restartSound = new Audio(SOUND_PATHS.restart);
+
+    // --------------------------------------------------------
+    // BACKGROUND MUSIC
+    // --------------------------------------------------------
+
+    backgroundMusic.loop = true;
+    backgroundMusic.volume = 0.35;
+    backgroundMusic.preload = "auto";
+
+    // --------------------------------------------------------
+    // SOUND EFFECT VOLUMES
+    // --------------------------------------------------------
+
+    moveSound.volume = 0.25;
+    eatSound.volume = 0.65;
+    goldenFoodSound.volume = 0.8;
+    goldenSpawnSound.volume = 0.5;
+    gameOverSound.volume = 0.75;
+    restartSound.volume = 0.55;
+
+    // --------------------------------------------------------
+    // PRELOAD
+    // --------------------------------------------------------
+
+    moveSound.preload = "auto";
+    eatSound.preload = "auto";
+    goldenFoodSound.preload = "auto";
+    goldenSpawnSound.preload = "auto";
+    gameOverSound.preload = "auto";
+    restartSound.preload = "auto";
+
+    // --------------------------------------------------------
+    // STORE REFERENCES
+    // --------------------------------------------------------
+
+    backgroundMusicRef.current = backgroundMusic;
+    eatSoundRef.current = eatSound;
+    goldenFoodSoundRef.current = goldenFoodSound;
+    goldenSpawnSoundRef.current = goldenSpawnSound;
+    gameOverSoundRef.current = gameOverSound;
+
+    audioInitializedRef.current = true;
+
+    return () => {
+      backgroundMusic.pause();
+
+      backgroundMusic.currentTime = 0;
+
+      moveSound.pause();
+      eatSound.pause();
+      goldenFoodSound.pause();
+      goldenSpawnSound.pause();
+      gameOverSound.pause();
+      restartSound.pause();
+
+      backgroundMusicRef.current = null;
+      eatSoundRef.current = null;
+      goldenFoodSoundRef.current = null;
+      goldenSpawnSoundRef.current = null;
+      gameOverSoundRef.current = null;
+    };
+  }, []);
+
+  // ==========================================================
+  // SAFE SOUND PLAY FUNCTION
+  // ==========================================================
+
+  const playSound = (audioRef, reset = true) => {
+    if (isMuted) return;
+
+    const audio = audioRef.current;
+
+    if (!audio) return;
+
+    try {
+      if (reset) {
+        audio.currentTime = 0;
+      }
+
+      const playPromise = audio.play();
+
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {
+          // Browser autoplay restriction.
+          // Audio will work after user interaction.
+        });
+      }
+    } catch (error) {
+      console.error("Audio error:", error);
+    }
+  };
+
+  // ==========================================================
+  // START BACKGROUND MUSIC
+  // ==========================================================
+
+  const startBackgroundMusic = () => {
+    if (isMuted) return;
+
+    const music = backgroundMusicRef.current;
+
+    if (!music) return;
+
+    try {
+      music.loop = true;
+
+      const playPromise = music.play();
+
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {
+          // Browser blocked autoplay.
+          // It will retry on next user interaction.
+        });
+      }
+    } catch (error) {
+      console.error("Background music error:", error);
+    }
+  };
+
+  // ==========================================================
+  // STOP BACKGROUND MUSIC
+  // ==========================================================
+
+  const stopBackgroundMusic = () => {
+    const music = backgroundMusicRef.current;
+
+    if (!music) return;
+
+    try {
+      music.pause();
+      music.currentTime = 0;
+    } catch (error) {
+      console.error("Background music stop error:", error);
+    }
+  };
+
+  // ==========================================================
+  // PAUSE BACKGROUND MUSIC
+  // ==========================================================
+
+  const pauseBackgroundMusic = () => {
+    const music = backgroundMusicRef.current;
+
+    if (!music) return;
+
+    try {
+      music.pause();
+    } catch (error) {
+      console.error("Background music pause error:", error);
+    }
+  };
+
+  // ==========================================================
+  // MUTE / UNMUTE
+  // ==========================================================
+
+  const toggleMute = () => {
+    const nextMuted = !isMuted;
+
+    setIsMuted(nextMuted);
+
+    localStorage.setItem("snakeGameMuted", String(nextMuted));
+
+    if (nextMuted) {
+      // ------------------------------------------------------
+      // MUTE EVERYTHING
+      // ------------------------------------------------------
+
+      const allSounds = [
+        backgroundMusicRef.current,
+        eatSoundRef.current,
+        goldenFoodSoundRef.current,
+        goldenSpawnSoundRef.current,
+        gameOverSoundRef.current,
+      ];
+
+      allSounds.forEach((audio) => {
+        if (!audio) return;
+
+        try {
+          audio.pause();
+        } catch (error) {
+          console.error("Mute error:", error);
+        }
+      });
+    } else {
+      // ------------------------------------------------------
+      // UNMUTE
+      // ------------------------------------------------------
+
+      if (gameStarted && !gameOver) {
+        setTimeout(() => {
+          startBackgroundMusic();
+        }, 50);
+      }
+    }
+  };
+
+  // ==========================================================
+  // POSITION GENERATOR
+  // ==========================================================
 
   const generatePosition = (snakeBody, extraPositions = []) => {
     const occupied = [...snakeBody, ...extraPositions.filter(Boolean)];
@@ -49,21 +376,29 @@ const Home = () => {
         );
 
         if (!isOccupied) {
-          available.push({ x, y });
+          available.push({
+            x,
+            y,
+          });
         }
       }
     }
 
-    if (available.length === 0) return null;
+    if (available.length === 0) {
+      return null;
+    }
 
     return available[Math.floor(Math.random() * available.length)];
   };
+
+  // ==========================================================
+  // HANDLE DIRECTION
+  // ==========================================================
 
   const handleDirection = (nextDirection) => {
     if (gameOver) return;
 
     setDirection((current) => {
-      // Prevent reversing directly into the snake's own body.
       if (
         current.x + nextDirection.x === 0 &&
         current.y + nextDirection.y === 0
@@ -71,13 +406,28 @@ const Home = () => {
         return current;
       }
 
+      directionRef.current = nextDirection;
+
       return nextDirection;
     });
 
-    setGameStarted(true);
+    // --------------------------------------------------------
+    // START GAME
+    // --------------------------------------------------------
+
+    if (!gameStarted) {
+      setGameStarted(true);
+
+      setTimeout(() => {
+        startBackgroundMusic();
+      }, 50);
+    }
   };
 
-  // Keyboard controls for desktop.
+  // ==========================================================
+  // KEYBOARD CONTROLS
+  // ==========================================================
+
   useEffect(() => {
     const handleKeyDown = (event) => {
       const keyMap = {
@@ -92,6 +442,7 @@ const Home = () => {
       if (!key) return;
 
       event.preventDefault();
+
       handleDirection(directions[key]);
     };
 
@@ -100,22 +451,40 @@ const Home = () => {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [gameOver]);
+  }, [gameOver, gameStarted, isMuted]);
 
-  // Golden food appears every 10 seconds and stays for 5 seconds.
+  // ==========================================================
+  // GOLDEN FOOD SPAWN
+  // ==========================================================
+
   useEffect(() => {
-    if (!gameStarted || gameOver) return;
+    if (!gameStarted || gameOver) {
+      return;
+    }
 
     const goldenInterval = setInterval(() => {
-      if (goldenFoodRef.current) return;
+      if (goldenFoodRef.current) {
+        return;
+      }
 
       const position = generatePosition(snakeRef.current, [foodRef.current]);
 
-      if (position) setGoldenFood(position);
+      if (position) {
+        setGoldenFood(position);
+
+        // Golden food appearing sound.
+        playSound(goldenSpawnSoundRef);
+      }
     }, 10000);
 
-    return () => clearInterval(goldenInterval);
-  }, [gameStarted, gameOver]);
+    return () => {
+      clearInterval(goldenInterval);
+    };
+  }, [gameStarted, gameOver, isMuted]);
+
+  // ==========================================================
+  // GOLDEN FOOD TIMEOUT
+  // ==========================================================
 
   useEffect(() => {
     if (!goldenFood) return;
@@ -124,115 +493,255 @@ const Home = () => {
       setGoldenFood(null);
     }, 5000);
 
-    return () => clearTimeout(timeout);
+    return () => {
+      clearTimeout(timeout);
+    };
   }, [goldenFood]);
 
-  // Main game loop.
+  // ==========================================================
+  // MAIN GAME LOOP
+  // ==========================================================
+
   useEffect(() => {
-    if (!gameStarted || gameOver) return;
+    if (!gameStarted || gameOver) {
+      return;
+    }
 
-    if (direction.x === 0 && direction.y === 0) return;
+    let timeoutId;
 
-    const interval = setInterval(
-      () => {
-        setSnake((previousSnake) => {
-          const head = {
-            x: previousSnake[0].x + direction.x,
-            y: previousSnake[0].y + direction.y,
-          };
+    const moveSnake = () => {
+      const currentSnake = snakeRef.current;
+      const currentDirection = directionRef.current;
+      const currentFood = foodRef.current;
+      const currentGoldenFood = goldenFoodRef.current;
 
-          const ateNormal = head.x === food.x && head.y === food.y;
+      // --------------------------------------------------------
+      // GAME NOT MOVING YET
+      // --------------------------------------------------------
 
-          const ateGolden =
-            goldenFood && head.x === goldenFood.x && head.y === goldenFood.y;
+      if (currentDirection.x === 0 && currentDirection.y === 0) {
+        timeoutId = setTimeout(moveSnake, getGameSpeed());
+        return;
+      }
 
-          const nextSnake = [head, ...previousSnake];
+      // --------------------------------------------------------
+      // NEW HEAD
+      // --------------------------------------------------------
 
-          // Keep the tail in place when food is eaten.
-          if (!ateNormal && !ateGolden) {
-            nextSnake.pop();
+      const head = {
+        x: currentSnake[0].x + currentDirection.x,
+        y: currentSnake[0].y + currentDirection.y,
+      };
+
+      // --------------------------------------------------------
+      // FOOD CHECK
+      // --------------------------------------------------------
+
+      const ateNormal = head.x === currentFood.x && head.y === currentFood.y;
+
+      const ateGolden =
+        currentGoldenFood &&
+        head.x === currentGoldenFood.x &&
+        head.y === currentGoldenFood.y;
+
+      // --------------------------------------------------------
+      // NEW SNAKE
+      // --------------------------------------------------------
+
+      const nextSnake = [head, ...currentSnake];
+
+      if (!ateNormal && !ateGolden) {
+        nextSnake.pop();
+      }
+
+      // --------------------------------------------------------
+      // WALL COLLISION
+      // --------------------------------------------------------
+
+      const hitWall =
+        head.x < 1 || head.x > boardSize || head.y < 1 || head.y > boardSize;
+
+      // --------------------------------------------------------
+      // SELF COLLISION
+      // --------------------------------------------------------
+
+      const hitSelf = nextSnake
+        .slice(1)
+        .some((segment) => segment.x === head.x && segment.y === head.y);
+
+      // --------------------------------------------------------
+      // GAME OVER
+      // --------------------------------------------------------
+
+      if (hitWall || hitSelf) {
+        setGameOver(true);
+
+        const stoppedDirection = {
+          x: 0,
+          y: 0,
+        };
+
+        directionRef.current = stoppedDirection;
+        setDirection(stoppedDirection);
+
+        pauseBackgroundMusic();
+        playSound(gameOverSoundRef);
+
+        return;
+      }
+
+      // --------------------------------------------------------
+      // UPDATE SNAKE
+      // --------------------------------------------------------
+
+      snakeRef.current = nextSnake;
+      setSnake(nextSnake);
+
+      // --------------------------------------------------------
+      // FOOD EATEN
+      // --------------------------------------------------------
+
+      if (ateNormal || ateGolden) {
+        const points = ateGolden ? 5 : 1;
+
+        // ======================================================
+        // SCORE
+        // ======================================================
+
+        const nextScore = scoreRef.current + points;
+
+        scoreRef.current = nextScore;
+        setScore(nextScore);
+
+        // ======================================================
+        // HIGH SCORE
+        // ======================================================
+
+        const currentDifficulty = difficultyRef.current;
+
+        const storageKey = `highScore_${currentDifficulty}`;
+
+        const savedHighScore = Number(localStorage.getItem(storageKey)) || 0;
+
+        const bestScore = Math.max(savedHighScore, nextScore);
+
+        if (bestScore > savedHighScore) {
+          localStorage.setItem(storageKey, String(bestScore));
+        }
+
+        // Pure state updater
+        setHighScores((previousHighScores) => ({
+          ...previousHighScores,
+          [currentDifficulty]: bestScore,
+        }));
+
+        // ======================================================
+        // NORMAL FOOD
+        // ======================================================
+
+        if (ateNormal) {
+          playSound(eatSoundRef);
+
+          const newFood = generatePosition(nextSnake, [currentGoldenFood]);
+
+          if (newFood) {
+            foodRef.current = newFood;
+            setFood(newFood);
           }
+        }
 
-          const hitWall =
-            head.x < 1 ||
-            head.x > boardSize ||
-            head.y < 1 ||
-            head.y > boardSize;
+        // ======================================================
+        // GOLDEN FOOD
+        // ======================================================
 
-          const hitSelf = nextSnake
-            .slice(1)
-            .some((segment) => segment.x === head.x && segment.y === head.y);
+        if (ateGolden) {
+          playSound(goldenFoodSoundRef);
 
-          if (hitWall || hitSelf) {
-            setGameOver(true);
-            setDirection({ x: 0, y: 0 });
-            return previousSnake;
-          }
+          goldenFoodRef.current = null;
+          setGoldenFood(null);
+        }
+      }
 
-          if (ateNormal || ateGolden) {
-            const points = ateGolden ? 5 : 1;
+      // --------------------------------------------------------
+      // NEXT MOVE
+      // --------------------------------------------------------
 
-            setScore((previousScore) => {
-              const nextScore = previousScore + points;
+      timeoutId = setTimeout(moveSnake, getGameSpeed());
+    };
 
-              setHighScore((previousHighScore) => {
-                const best = Math.max(previousHighScore, nextScore);
-                localStorage.setItem("highScore", String(best));
-                return best;
-              });
+    // First move
+    timeoutId = setTimeout(moveSnake, getGameSpeed());
 
-              return nextScore;
-            });
-
-            if (ateNormal) {
-              setFood(
-                generatePosition(nextSnake, [goldenFoodRef.current]) ||
-                  foodRef.current,
-              );
-            }
-
-            if (ateGolden) {
-              setGoldenFood(null);
-            }
-          }
-
-          return nextSnake;
-        });
-      },
-      Math.max(80, 200 - score * 5),
-    );
-
-    return () => clearInterval(interval);
-  }, [direction, food, goldenFood, score, gameStarted, gameOver]);
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [gameStarted, gameOver]);
+  // ==========================================================
+  // RESTART GAME
+  // ==========================================================
 
   const restartGame = () => {
+    // --------------------------------------------------------
+    // RESET GAME
+    // --------------------------------------------------------
+
     setSnake(initialSnake);
+
     setFood(initialFood);
+
     setGoldenFood(null);
-    setDirection({ x: 0, y: 0 });
+
+    setDirection({
+      x: 0,
+      y: 0,
+    });
+
+    scoreRef.current = 0;
     setScore(0);
+
     setGameStarted(false);
+
     setGameOver(false);
+    // --------------------------------------------------------
+    // STOP OLD MUSIC
+    // --------------------------------------------------------
+
+    stopBackgroundMusic();
   };
 
+  // ==========================================================
+  // CONTROL BUTTON STYLE
+  // ==========================================================
+
   const controlButtonClass =
-    "flex h-14 w-16 sm:h-16 sm:w-20 items-center justify-center " +
-    "rounded-xl border-2 border-green-700 bg-green-500 " +
-    "text-3xl font-bold text-white shadow-md transition " +
-    "active:scale-90 active:bg-green-700 select-none " +
-    "touch-manipulation";
+    "flex h-14 w-16 sm:h-16 sm:w-20 " +
+    "items-center justify-center " +
+    "rounded-xl border-2 border-green-700 " +
+    "bg-green-500 text-3xl font-bold text-white " +
+    "shadow-md transition " +
+    "active:scale-90 active:bg-green-700 " +
+    "select-none touch-manipulation";
+
+  // ==========================================================
+  // UI
+  // ==========================================================
 
   return (
-    <div className="relative min-h-screen flex flex-col items-center justify-center  bg-[#d7f8d7]">
-      <main className="flex min-h-screen flex-col items-center justify-center md:px-3  sm:py-8 md:py-0">
-        {/* Mobile Score Section */}
+    <div className="relative min-h-screen flex flex-col items-center justify-center bg-[#d7f8d7]">
+      <main className="flex min-h-screen flex-col items-center justify-center md:px-3 sm:py-8 md:py-0">
+        {/* ==================================================
+            MOBILE SCORE HEADER
+        ================================================== */}
+
         <div className="mb-2 flex w-full max-w-[620px] items-center justify-between gap-2 md:hidden">
           <div className="rounded-xl border border-green-300 bg-white/80 px-3 py-2 shadow-sm">
             <p className="text-xs font-semibold text-gray-600">SCORE</p>
 
             <p className="text-xl font-extrabold text-green-700">{score}</p>
           </div>
+
           <h1 className="text-xl font-extrabold text-green-900">Snake Game</h1>
+
           <div className="rounded-xl border border-yellow-300 bg-white/80 px-3 py-2 text-right shadow-sm">
             <p className="text-xs font-semibold text-gray-600">BEST</p>
 
@@ -242,18 +751,23 @@ const Home = () => {
           </div>
         </div>
 
-        <h1 className="text-xl hidden font-extrabold text-green-900 md:flex ">
+        {/* ==================================================
+            DESKTOP TITLE
+        ================================================== */}
+
+        <h1 className="text-xl hidden font-extrabold text-green-900 md:flex">
           Snake Game
         </h1>
 
-        {/* Desktop Score Section */}
-        <div className="absolute top-10 right-4 mb-1  max-w-[620px] items-center justify-between gap-2 hidden md:flex">
+        {/* ==================================================
+            DESKTOP SCORE
+        ================================================== */}
+
+        <div className="absolute top-8 right-4 mb-1 max-w-[620px] items-center justify-between gap-2 hidden md:flex">
           <div className="rounded-xl border border-green-300 bg-white/80 px-4 py-0 shadow-sm">
             <p className="text-l font-bold text-gray-600">
               SCORE-
-              <span className="text-xl font-bold text-green-700">
-                {score}
-              </span>{" "}
+              <span className="text-xl font-bold text-green-700">{score}</span>
             </p>
           </div>
 
@@ -262,33 +776,126 @@ const Home = () => {
               BEST-
               <span className="text-xl font-bold text-yellow-700">
                 {highScore}
-              </span>{" "}
+              </span>
             </p>
           </div>
         </div>
+
+        {/* ==================================================
+            SOUND / MUTE BUTTON
+        ================================================== */}
+
+        <button
+          type="button"
+          onClick={toggleMute}
+          aria-label={isMuted ? "Turn sound on" : "Mute sound"}
+          title={isMuted ? "Turn sound on" : "Mute sound"}
+          className="
+            absolute
+            top-12
+            left-4
+            z-50
+            flex
+            h-11
+            w-11
+            items-center
+            justify-center
+            rounded-full
+            border-2
+            border-green-700
+            bg-white
+            text-xl
+            shadow-lg
+            transition
+            hover:bg-green-50
+            active:scale-90
+            md:left-auto
+            md:right-5
+            md:top-20
+          "
+        >
+          {isMuted ? "🔇" : "🔊"}
+        </button>
+
+        {/* ==================================================
+            DIFFICULTY SELECTOR
+          ================================================== */}
+
+        <div className="absolute top-12 right-4 md:top-36 md:right-4 mb-3 flex items-center justify-center gap-2">
+          <label
+            htmlFor="difficulty"
+            className="text-sm font-bold text-green-950"
+          >
+            Difficulty:
+          </label>
+
+          <select
+            id="difficulty"
+            value={difficulty}
+            onChange={(e) => setDifficulty(e.target.value)}
+            disabled={gameStarted}
+            className="
+            border-2
+            rounded-lg
+            bg-white
+            border-green-600
+            py-1.5
+            px-3
+            text-sm
+            font-bold
+           text-green-800
+            shadow-sm
+            outline-none
+            transition
+           focus:border-green-800
+            focus:ring-2
+           focus:ring-green-300
+            disabled:cursor-not-allowed
+            disabled:opacity-60
+             "
+          >
+            {Object.entries(DIFFICULTY_SETTINGS).map(([key, setting]) => (
+              <option key={key} value={key}>
+                {setting.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* ==================================================
+            DESKTOP INFO
+        ================================================== */}
+
         <div className="absolute top-0 left-0 mt-8 ml-8 hidden flex-col items-center md:flex">
           <p className="mb-2 text-sm font-semibold text-green-950 lg:hidden">
             Use buttons to control
           </p>
+
           <p className="mb-2 hidden text-sm font-semibold text-green-950 lg:flex">
             Use arrows keys to control
           </p>
+
           <p className="mt-2 text-center text-xs text-green-900/80">
             Normal Food: +1 &nbsp; | &nbsp; Golden Food: +5
           </p>
-
-          <button
-            type="button"
-            onClick={restartGame}
-            className="mt-3 rounded-lg border border-green-700 bg-white px-5 py-2 text-sm font-bold text-green-800 shadow-sm transition hover:bg-green-100 active:scale-95"
-          >
-            Restart Game
-          </button>
         </div>
 
-        {/* Responsive square board */}
+        {/* ==================================================
+            GAME BOARD
+        ================================================== */}
+
         <div
-          className="w-[90vmin] h-[90vmin] relative grid overflow-hidden rounded-md border-[3px] border-green-950 shadow-xl"
+          className="
+            w-[90vmin]
+            h-[90vmin]
+            relative
+            grid
+            overflow-hidden
+            rounded-md
+            border-[3px]
+            border-green-950
+            shadow-xl
+          "
           style={{
             aspectRatio: "1 / 1",
             gridTemplateColumns: `repeat(${boardSize}, minmax(0, 1fr))`,
@@ -296,8 +903,15 @@ const Home = () => {
             touchAction: "none",
           }}
         >
-          {Array.from({ length: boardSize * boardSize }).map((_, index) => {
+          {/* =================================================
+              BOARD CELLS
+          ================================================= */}
+
+          {Array.from({
+            length: boardSize * boardSize,
+          }).map((_, index) => {
             const row = Math.floor(index / boardSize) + 1;
+
             const col = (index % boardSize) + 1;
 
             return (
@@ -314,26 +928,43 @@ const Home = () => {
             );
           })}
 
-          {/* Snake */}
+          {/* =================================================
+              SNAKE
+          ================================================= */}
+
           {snake.map((segment, index) => {
             let rotation = "rotate(0deg)";
 
-            if (direction.x === 1) rotation = "rotate(90deg)";
-            if (direction.x === -1) rotation = "rotate(270deg)";
-            if (direction.y === 1) rotation = "rotate(180deg)";
+            if (direction.x === 1) {
+              rotation = "rotate(90deg)";
+            }
+
+            if (direction.x === -1) {
+              rotation = "rotate(270deg)";
+            }
+
+            if (direction.y === 1) {
+              rotation = "rotate(180deg)";
+            }
 
             return (
               <div
                 key={index}
                 style={{
                   gridRowStart: segment.y,
+
                   gridColumnStart: segment.x,
+
                   ...(index === 0
                     ? {
                         backgroundImage: `url(${snakeHead})`,
+
                         backgroundSize: "contain",
+
                         backgroundPosition: "center",
+
                         backgroundRepeat: "no-repeat",
+
                         transform: rotation,
                       }
                     : {}),
@@ -347,52 +978,97 @@ const Home = () => {
             );
           })}
 
-          {/* Normal food */}
+          {/* =================================================
+              NORMAL FOOD
+          ================================================= */}
+
           <div
             style={{
               gridRowStart: food.y,
+
               gridColumnStart: food.x,
+
               backgroundImage: `url(${snakeFood})`,
+
               backgroundSize: "contain",
+
               backgroundRepeat: "no-repeat",
+
               backgroundPosition: "center",
             }}
             className="z-10"
           />
 
-          {/* Golden food: +5 points */}
+          {/* =================================================
+              GOLDEN FOOD
+          ================================================= */}
+
           {goldenFood && (
             <div
               style={{
                 gridRowStart: goldenFood.y,
+
                 gridColumnStart: goldenFood.x,
+
                 background:
                   "radial-gradient(circle, #fef9c3 10%, #facc15 55%, #ca8a04 100%)",
-                boxShadow: "0 0 8px #eab308",
+
+                boxShadow: "0 0 8px #eab308, 0 0 20px #facc15",
+
                 margin: "12%",
               }}
-              className="z-10 animate-pulse rounded-full border-2 border-yellow-100"
+              className="
+                z-10
+                animate-pulse
+                rounded-full
+                border-2
+                border-yellow-100
+              "
             />
           )}
 
-          {/* Start overlay */}
+          {/* =================================================
+              START OVERLAY
+          ================================================= */}
+
           {!gameStarted && !gameOver && (
             <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/45 p-3">
               <div className="rounded-2xl bg-white px-4 py-5 text-center shadow-2xl sm:px-7">
+                <div className="mb-2 text-4xl">🐍</div>
+
                 <h2 className="mb-2 text-2xl font-extrabold text-green-800 sm:text-3xl">
                   Snake Game
                 </h2>
+
                 <p className="text-sm text-gray-700 sm:text-base">
                   Press an arrow key or tap a control to start.
+                </p>
+                <div className="mt-3 rounded-lg bg-green-50 px-4 py-2">
+                  <p className="text-xs font-semibold text-gray-500">
+                    Difficulty
+                  </p>
+
+                  <p className="text-lg font-extrabold text-green-700">
+                    {DIFFICULTY_SETTINGS[difficulty].name}
+                  </p>
+                </div>
+
+                <p className="mt-2 text-xs text-gray-500">
+                  🔊 Background Music & Sound Effects
                 </p>
               </div>
             </div>
           )}
 
-          {/* Game over overlay */}
+          {/* =================================================
+              GAME OVER
+          ================================================= */}
+
           {gameOver && (
             <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/55 p-3">
               <div className="w-full max-w-xs rounded-2xl bg-white px-5 py-6 text-center shadow-2xl">
+                <div className="mb-1 text-4xl">💥</div>
+
                 <h2 className="mb-3 text-3xl font-extrabold text-red-600 sm:text-4xl">
                   Game Over!
                 </h2>
@@ -407,7 +1083,18 @@ const Home = () => {
 
                 <button
                   onClick={restartGame}
-                  className="w-full rounded-xl bg-green-600 px-5 py-3 font-bold text-white transition hover:bg-green-700 active:scale-95"
+                  className="
+                    w-full
+                    rounded-xl
+                    bg-green-600
+                    px-5
+                    py-3
+                    font-bold
+                    text-white
+                    transition
+                    hover:bg-green-700
+                    active:scale-95
+                  "
                 >
                   Play Again
                 </button>
@@ -416,7 +1103,10 @@ const Home = () => {
           )}
         </div>
 
-        {/* Mobile controls only */}
+        {/* ==================================================
+            MOBILE CONTROLS
+        ================================================== */}
+
         <div className="mt-4 flex flex-col items-center sm:hidden">
           <p className="mb-1 text-sm font-semibold text-green-950">
             Use buttons to control
@@ -467,17 +1157,12 @@ const Home = () => {
           <p className="mt-2 text-center text-xs text-green-900/80">
             Normal Food: +1 &nbsp; | &nbsp; Golden Food: +5
           </p>
-
-          <button
-            type="button"
-            onClick={restartGame}
-            className="mt-3 rounded-lg border border-green-700 bg-white px-5 py-2 text-sm font-bold text-green-800 shadow-sm transition hover:bg-green-100 active:scale-95"
-          >
-            Restart Game
-          </button>
         </div>
 
-        {/* Mobile landscape controls only */}
+        {/* ==================================================
+            MOBILE LANDSCAPE CONTROLS
+        ================================================== */}
+
         <div className="absolute bottom-12 left-0 mt-4 hidden flex-col items-center md:flex lg:hidden">
           <div className="grid grid-cols-2 gap-2 p-8">
             <button
