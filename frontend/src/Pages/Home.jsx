@@ -739,9 +739,6 @@ const Home = () => {
 
             <p className="text-xl font-extrabold text-green-700">{score}</p>
           </div>
-
-          <h1 className="text-xl font-extrabold text-green-900">Snake Game</h1>
-
           <div className="rounded-xl border border-yellow-300 bg-white/80 px-3 py-2 text-right shadow-sm">
             <p className="text-xs font-semibold text-gray-600">BEST</p>
 
@@ -755,9 +752,7 @@ const Home = () => {
             DESKTOP TITLE
         ================================================== */}
 
-        <h1 className="text-xl hidden font-extrabold text-green-900 md:flex">
-          Snake Game
-        </h1>
+        
 
         {/* ==================================================
             DESKTOP SCORE
@@ -792,12 +787,12 @@ const Home = () => {
           title={isMuted ? "Turn sound on" : "Mute sound"}
           className="
             absolute
-            top-12
+            top-4
             left-4
             z-50
             flex
-            h-11
-            w-11
+            h-10
+            w-10
             items-center
             justify-center
             rounded-full
@@ -808,10 +803,8 @@ const Home = () => {
             shadow-lg
             transition
             hover:bg-green-50
-            active:scale-90
-            md:left-auto
-            md:right-5
-            md:top-20
+            active:scale-50
+           
           "
         >
           {isMuted ? "🔇" : "🔊"}
@@ -821,7 +814,7 @@ const Home = () => {
             DIFFICULTY SELECTOR
           ================================================== */}
 
-        <div className="absolute top-12 right-4 md:top-36 md:right-4 mb-3 flex items-center justify-center gap-2">
+        <div className="absolute top-8 right-4 md:top-20 md:right-4 mb-3 flex items-center justify-center gap-2">
           <label
             htmlFor="difficulty"
             className="text-sm font-bold text-green-950"
@@ -867,6 +860,9 @@ const Home = () => {
         ================================================== */}
 
         <div className="absolute top-0 left-0 mt-8 ml-8 hidden flex-col items-center md:flex">
+          <h1 className="text-xl font-extrabold text-green-900">
+          Snake Game
+        </h1>
           <p className="mb-2 text-sm font-semibold text-green-950 lg:hidden">
             Use buttons to control
           </p>
